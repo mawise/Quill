@@ -127,27 +127,30 @@ $(function(){
     });
   }
 
-  function timezone_for_airport(code, callback) {
-    $.getJSON("/airport-info?code="+code, function(data){
+  function timezone_for_airport(code, date, callback) {
+    $.getJSON("/airport-info?code="+code+"&date="+date, function(data){
       callback(data.offset);
     });
   }
 
   function bind_leg_timezone() {
-    $(".itinerary-leg .leg-origin").unbind("change").change(function(el){
-      timezone_for_airport($(this).val(), function(offset){
+    $(".itinerary-leg .leg-origin, .leg-departure-date").unbind("change").change(function(el){
+      var airport = $(el.target).parents().find(".leg-origin").val();
+      var date = $(el.target).parents().find(".leg-departure-date").val();
+      $(el.target).parents(".itinerary-leg").find(".leg-arrival-date").val(date);
+      timezone_for_airport(airport, date, function(offset){
         $(el.target).parents(".itinerary-leg").find(".leg-departure-tz").val(offset);
+        $(el.target).parents(".itinerary-leg").find(".leg-arrival-tz").val(offset);
         $(el.target).parents(".itinerary-leg").find(".leg-departure-tz").parent().addClass("has-success");
       });
     });
-    $(".itinerary-leg .leg-destination").unbind("change").change(function(el){
-      timezone_for_airport($(this).val(), function(offset){
+    $(".itinerary-leg .leg-destination, .leg-arrival-date").unbind("change").change(function(el){
+      var airport = $(el.target).parents().find(".leg-destination").val();
+      var date = $(el.target).parents().find(".leg-arrival-date").val();
+      timezone_for_airport(airport, date, function(offset){
         $(el.target).parents(".itinerary-leg").find(".leg-arrival-tz").val(offset);
         $(el.target).parents(".itinerary-leg").find(".leg-arrival-tz").parent().addClass("has-success");
       });
-    });
-    $(".leg-departure-date").unbind("change").change(function(el){
-      $(el.target).parents(".itinerary-leg").find(".leg-arrival-date").val($(el.target).val());
     });
   }
 
