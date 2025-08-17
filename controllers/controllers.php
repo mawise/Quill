@@ -81,7 +81,7 @@ $app->get('/new', function() use($app) {
 
 $app->get('/new/last-photo.json', function() use($app) {
   if($user=require_login($app)) {
-    $url = null;
+    $item = null;
 
     if($user->micropub_media_endpoint) {
       // Request the last file uploaded from the media endpoint
@@ -89,20 +89,23 @@ $app->get('/new/last-photo.json', function() use($app) {
       if(isset($response['data']['items'])) {
         $items = $response['data']['items'];
         if(isset($items[0])) {
-          $item = $items[0];
           // Only show the file if it was uploaded in the last 5 minutes or if no published date available
-          $show = !isset($item['published']) || (strtotime($item['published']) >= (time()-300));
-          if($show && isset($item['url'])) {
-            $url = $item['url'];
+          $show = !isset($items[0]['published']) || (strtotime($items[0]['published']) >= (time()-900));
+          if($show && isset($items[0]['url'])) {
+            $item = $items[0];
           }
         }
       }
     }
 
+    if($item && !empty($item['latitude'])) {
+      $timezone = p3k\Timezone::timezone_for_location($item['latitude'], $item['longitude']);
+      $tz = new DateTimeZone($timezone);
+      $item['tz_offset'] = tz_seconds_to_offset($tz->getOffset(new DateTime($item['date_created'])));
+    }
+
     $app->response()['Content-type'] = 'application/json';
-    $app->response()->body(json_encode(array(
-      'url' => $url
-    )));
+    $app->response()->body(json_encode($item, JSON_PRETTY_PRINT+JSON_UNESCAPED_SLASHES));
   }
 });
 
@@ -830,7 +833,10 @@ $app->get('/airport-info', function() use($app){
     $params = $app->request()->params();
     if(!isset($params['code'])) return;
 
-    $ch = curl_init('https://atlas.p3k.io/api/timezone?airport='.urlencode($params['code']));
+    $ch = curl_init('https://atlas.p3k.io/api/timezone?'.http_build_query([
+      'airport' => $params['code'],
+      'date' => $params['date'],
+    ]));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     $data = json_decode(curl_exec($ch), true);
 

@@ -47,8 +47,7 @@
 
         <div class="form-group">
           <div id="mastodon_content_remaining" class="mcheck500"><img src="/images/mastodon.ico" width="16"> <span>500</span></div>
-          <div id="note_content_remaining" class="pcheck206"><img src="/images/twitter.ico"> <span>280</span></div>
-          <div id="bluesky_content_remaining" class="bcheck256"><img src="/images/bluesky.png" width="16"> <span>256</span></div>
+          <div id="bluesky_content_remaining" class="bcheck256"><img src="/images/bluesky.svg" width="16"> <span>256</span></div>
           <label for="note_content">Content</label>
           <textarea id="note_content" value="" class="form-control" style="height: 4em;"></textarea>
         </div>
@@ -222,7 +221,7 @@
   margin-bottom: 1em;
 }
 
-#note_content_remaining, #mastodon_content_remaining, #bluesky_content_remaining {
+#mastodon_content_remaining, #bluesky_content_remaining {
   float: right;
   font-size: 0.8em;
   font-weight: bold;
@@ -398,9 +397,34 @@ $(function(){
         alt: null,
         external: true
       });
+      handle_uploaded_photo(response);
       refreshPhotoPreviews();
     }
   });
+  
+  function handle_uploaded_photo(photo) {
+    if(photo.url) {
+
+      if(photo.date_created) {
+        set_post_date(new Date(photo.date_created));
+        if(photo.tz_offset) {
+          $("#note_published_date").val( $("#note_published_date").val()+photo.tz_offset );
+        }
+        $("#published-field").removeClass("hidden");
+        
+        if(photo.latitude) {
+          set_post_location(photo.latitude, photo.longitude, 10);
+        } else {
+          // Remove location since presumably this is a backdated post
+          $("#note_location_chk").removeAttr("checked");
+        }
+      }
+      
+    } else {
+      console.log("Endpoint did not return a location header", photo);
+    }
+    
+  }
 
   $("#note_photo").on("change", function(e){
 
@@ -415,13 +439,10 @@ $(function(){
         if(request.readyState == XMLHttpRequest.DONE) {
           try {
             var response = JSON.parse(request.responseText);
-            if(response.location) {
-              $("#modal_photo_preview img").attr("src", response.location);
-              $("#note_photo_url").removeClass("hidden").val(response.location);
-              $("#note_photo_button").addClass("hidden");
-            } else {
-              console.log("Endpoint did not return a location header", response);
-            }
+            $("#modal_photo_preview img").attr("src", photo.url);
+            $("#note_photo_url").removeClass("hidden").val(photo.url);
+            $("#note_photo_button").addClass("hidden");
+            handle_uploaded_photo(response);
           } catch(e) {
             console.log(e);
           }
@@ -509,6 +530,25 @@ $(function(){
 
 });
 
+function set_post_date(d) {
+  function tz_seconds_to_offset(seconds) {
+    var tz_offset = '';
+    var hours = zero_pad(Math.floor(Math.abs(seconds / 60 / 60)));
+    var minutes = zero_pad(Math.floor(seconds / 60) % 60);
+    return (seconds < 0 ? '-' : '+') + hours + ":" + minutes;
+  }
+  function zero_pad(num) {
+    num = "" + num;
+    if(num.length == 1) {
+      num = "0" + num;
+    }
+    return num;
+  }
+
+  $("#note_published_date").val(d.getFullYear()+"-"+zero_pad(d.getMonth()+1)+"-"+zero_pad(d.getDate())
+   +"T"+zero_pad(d.getHours())+":"+zero_pad(d.getMinutes())+":"+zero_pad(d.getSeconds()));
+}
+
 function switchToMarkdown() {
   $("#content-type-selection select").val("text/markdown");
   $("#content-type-selection").removeClass("hidden");
@@ -544,40 +584,26 @@ function refreshPhotoPreviews() {
   });
 }
 
-/*
-  $("#note_photo").on("change", function(e){
-    // If the user has a media endpoint, upload the photo to it right now
-    if(hasMediaEndpoint) {
-      // TODO: add loading state indicator here
-      console.log("Uploading file to media endpoint...");
-      var formData = new FormData();
-      formData.append("null","null");
-      formData.append("photo", e.target.files[0]);
-      var request = new XMLHttpRequest();
-      request.open("POST", "/micropub/media");
-      request.onreadystatechange = function() {
-        if(request.readyState == XMLHttpRequest.DONE) {
-          try {
-            var response = JSON.parse(request.responseText);
-            if(response.location) {
-              // Replace the file upload form with the URL
-              replacePhotoWithPhotoURL(response.location);
-              saveNoteState();
-            } else {
-              console.log("Endpoint did not return a location header", response);
-            }
-          } catch(e) {
-            console.log(e);
-          }
-        }
-      }
-      request.send(formData);
-    } else {
-      $("#photo_preview").attr("src", URL.createObjectURL(e.target.files[0]) );
-      $("#photo_preview_container").removeClass("hidden");
-    }
-  });
-*/
+
+
+  var map_template_wide = "<?= static_map('{lat}', '{lng}', 180, 700, 15) ?>";
+  var map_template_small = "<?= static_map('{lat}', '{lng}', 320, 480, 15) ?>";
+
+  function set_post_location(latitude, longitude, accuracy) {
+    $("#note_location_loading").hide();
+    var geo = "geo:" + (Math.round(latitude * 100000) / 100000) + "," + (Math.round(longitude * 100000) / 100000) + ";u=" + accuracy;
+    $("#note_location_msg").val(geo);
+    $("#note_location").val(geo);
+    $("#note_location_img_small").attr("src", map_template_small.replace('{lat}', latitude).replace('{lng}', longitude));
+    $("#note_location_img_wide").attr("src", map_template_wide.replace('{lat}', latitude).replace('{lng}', longitude));
+    $("#note_location_img").show();
+    $("#note_location_msg").addClass("img-visible");
+
+    $.post("/prefs/timezone", {
+      latitude: latitude,
+      longitude: longitude
+    });
+  }
 
 
 $(function(){
@@ -621,12 +647,6 @@ $(function(){
 
   $("#note_content").on('change keyup', function(e){
     var text = $("#note_content").val();
-    var tweet_length = tw_text_proxy(text).length;
-    var tweet_check = tw_length_check(text, 280, "");
-    var remaining = 280 - tweet_length;
-    $("#note_content_remaining span").text(remaining);
-    $("#note_content_remaining").removeClass("pcheck200 pcheck206 pcheck207 pcheck208 pcheck413");
-    $("#note_content_remaining").addClass("pcheck"+tweet_check);
 
     $("#mastodon_content_remaining span").text(500 - text.length);
     $("#mastodon_content_remaining").removeClass("lengthOK lengthWARN lengthOVER");
@@ -902,27 +922,12 @@ $(function(){
     $("#note_location_msg").removeClass("img-visible");
   }
 
-  var map_template_wide = "<?= static_map('{lat}', '{lng}', 180, 700, 15) ?>";
-  var map_template_small = "<?= static_map('{lat}', '{lng}', 320, 480, 15) ?>";
-
   function fetch_location() {
     $("#note_location_loading").show();
 
     navigator.geolocation.getCurrentPosition(function(position){
 
-      $("#note_location_loading").hide();
-      var geo = "geo:" + (Math.round(position.coords.latitude * 100000) / 100000) + "," + (Math.round(position.coords.longitude * 100000) / 100000) + ";u=" + position.coords.accuracy;
-      $("#note_location_msg").val(geo);
-      $("#note_location").val(geo);
-      $("#note_location_img_small").attr("src", map_template_small.replace('{lat}', position.coords.latitude).replace('{lng}', position.coords.longitude));
-      $("#note_location_img_wide").attr("src", map_template_wide.replace('{lat}', position.coords.latitude).replace('{lng}', position.coords.longitude));
-      $("#note_location_img").show();
-      $("#note_location_msg").addClass("img-visible");
-
-      $.post("/prefs/timezone", {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude
-      });
+      set_post_location(position.coords.latitude, position.coords.longitude, position.coords.accuracy);
 
     }, function(err){
       if(err.code == 1) {
@@ -934,7 +939,7 @@ $(function(){
       }
     });
   }
-
+  
   $("#note_location_chk").click(function(){
     if($(this).attr("checked") == "checked") {
       if(navigator.geolocation) {
