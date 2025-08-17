@@ -126,6 +126,9 @@ function micropub_media_post_for_user(&$user, $file) {
     $r['location'] = false;
   }
 
+  $parts = explode("\r\n\r\n", $r['response']);
+  $r['body'] = isset($parts[2]) ? $parts[2] : null;
+
   return $r;
 }
 
@@ -445,6 +448,10 @@ function validate_photo(&$file) {
 
       return $e->getMessage();
   }
+}
+
+function tz_seconds_to_offset($seconds) {
+  return ($seconds < 0 ? '-' : '+') . sprintf('%02d:%02d', abs($seconds/60/60), ($seconds/60)%60);
 }
 
 // Reads the exif rotation data and actually rotates the photo.
