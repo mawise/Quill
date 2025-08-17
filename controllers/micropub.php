@@ -102,10 +102,36 @@ $app->post('/micropub/media', function() use($app) {
       $r['error'] = "No 'Location' header in response.";
     }
 
+    $date_created = null;
+    $tz_offset = null;
+    $latitude = null;
+    $longitude = null;
+
+    if(!empty($r['body'])) {
+      $body = json_decode($r['body'], true);
+      if(!empty($body) && is_array($body) && isset($body['date_created'])) {
+        $date_created = $body['date_created'];
+        
+        if(isset($body['latitude'])) {
+          $timezone = p3k\Timezone::timezone_for_location($body['latitude'], $body['longitude']);
+          $tz = new DateTimeZone($timezone);
+          $tz_offset = tz_seconds_to_offset($tz->getOffset(new DateTime($date_created)));
+          $latitude = $body['latitude'];
+          $longitude = $body['longitude'];
+        }
+        
+      }
+    }
+
     $app->response()['Content-type'] = 'application/json';
     $app->response()->body(json_encode(array(
-      'location' => (isset($r['location']) ? $r['location'] : null),
+      'url' => (isset($r['location']) ? $r['location'] : null),
+      'date_created' => $date_created,
+      'tz_offset' => $tz_offset,
+      'latitude' => $latitude,
+      'longitude' => $longitude,
       'error' => (isset($r['error']) ? $r['error'] : null),
+      'debug' => $r['body']
     )));
   }
 });
