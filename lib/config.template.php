@@ -24,3 +24,9 @@ class Config {
   public static $googleMapsAPIKey = '';
 }
 
+// Override with environment variables if they exist
+if (getenv('DB_TYPE')) Config::$dbType = getenv('DB_TYPE');
+if (getenv('DB_HOST')) Config::$dbHost = getenv('DB_HOST');
+if (getenv('DB_NAME')) Config::$dbName = getenv('DB_NAME');
+if (getenv('DB_USERNAME')) Config::$dbUsername = getenv('DB_USERNAME');
+if (getenv('DB_PASSWORD')) Config::$dbPassword = getenv('DB_PASSWORD');
