@@ -25,8 +25,11 @@ WORKDIR /var/www/html
 # Copy the application code
 COPY . .
 
+# Configure git safe directory to avoid dubious ownership errors during composer install
+RUN git config --global --add safe.directory /var/www/html
+
 # Install PHP dependencies
-RUN composer install --no-dev --optimize-autoloader
+RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs
 
 # Copy config template to config
 RUN cp lib/config.template.php lib/config.php
